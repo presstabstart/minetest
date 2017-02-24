@@ -1432,7 +1432,7 @@ protected:
 	void handlePointingAtObject(GameRunData *runData,
 			const PointedThing &pointed, const ItemStack &playeritem,
 			const v3f &player_position, bool show_debug);
-	void handleDigging(GameRunData *runData, const PointedThing &pointed,
+	bool handleDigging(GameRunData *runData, const PointedThing &pointed,
 			const v3s16 &nodepos, const ToolCapabilities &playeritem_toolcap,
 			f32 dtime);
 	void updateFrame(ProfilerGraph *graph, RunStats *stats, GameRunData *runData,
@@ -3825,9 +3825,9 @@ void Game::handlePointingAtNode(GameRunData *runData,
 	}
 
 	if (runData->nodig_delay_timer <= 0.0 && isLeftPressed()
-			&& client->checkPrivilege("interact")) {
-		handleDigging(runData, pointed, nodepos, playeritem_toolcap, dtime);
-	}
+			&& client->checkPrivilege("interact")
+			&& handleDigging(runData, pointed, nodepos, playeritem_toolcap, dtime))
+		meta = NULL; // If node is removed, pointer to metadata no longer valid.
 
 	if ((getRightClicked() ||
 			runData->repeat_rightclick_timer >= m_repeat_right_click_time) &&
@@ -3939,10 +3939,11 @@ void Game::handlePointingAtObject(GameRunData *runData,
 }
 
 
-void Game::handleDigging(GameRunData *runData,
+bool Game::handleDigging(GameRunData *runData,
 		const PointedThing &pointed, const v3s16 &nodepos,
 		const ToolCapabilities &playeritem_toolcap, f32 dtime)
 {
+	bool nodeRemoved = false;
 	if (!runData->digging) {
 		infostream << "Started digging" << std::endl;
 		client->interact(0, pointed);
@@ -4019,8 +4020,10 @@ void Game::handleDigging(GameRunData *runData,
 		client->setCrack(-1, v3s16(0, 0, 0));
 		bool is_valid_position;
 		MapNode wasnode = map.getNodeNoEx(nodepos, &is_valid_position);
-		if (is_valid_position)
+		if (is_valid_position) {
 			client->removeNode(nodepos);
+			nodeRemoved = true;
+		}
 
 		if (m_cache_enable_particles) {
 			const ContentFeatures &features =
@@ -4060,6 +4063,7 @@ void Game::handleDigging(GameRunData *runData,
 	}
 
 	camera->setDigging(0);  // left click animation
+	return nodeRemoved;
 }
 
 
